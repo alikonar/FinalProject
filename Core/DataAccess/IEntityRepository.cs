@@ -1,10 +1,11 @@
-﻿using Entities.Abstract;
+﻿using Core.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Text;
 
-namespace DataAccess.Abstract
+
+namespace Core.DataAccess // CORE katmanı diğer katmanları referans almaz. Core katmanı evrensel bir katmandır.
 {
     //generic constraint -- Generic kısıtlama
     // : class >>> referans tip olabilir demek.
