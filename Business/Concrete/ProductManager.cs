@@ -1,12 +1,19 @@
 ﻿using Business.Abstract;
+using Business.CCS;
 using Business.Constants;
+using Business.ValidationRules.FluentValidation;
+using Core.Aspects.Autofac.Validation;
+using Core.CrossCuttingConcerns.Validation;
+using Core.Utilities.Business;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using DataAccess.Concrete.InMemory;
 using Entities.Concrete;
 using Entities.DTOs;
+using FluentValidation;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Business.Concrete
@@ -14,26 +21,70 @@ namespace Business.Concrete
     public class ProductManager : IProductService
     {
         IProductDal _productDal;
-        public ProductManager(IProductDal productDal)
+        ICategoryService _categoryService;
+
+        public ProductManager(IProductDal productDal,ICategoryService categoryService)
         {
             _productDal = productDal;
+            _categoryService = categoryService;
+                       
         }
 
+        [ValidationAspect(typeof(ProductValidator))]
         public IResult Add(Product product)
         {
-            if (product.ProductName.Length<2)
-            {
+            //business code -> iş gereksinimlerini tutan kısımdır. Uygun olup olmadığının kontrolü burda yapılır.
+            //validation(doğrulama) code -> ekleyeceğin nesnenin/objenin şartları karşılayıp karşılamadığını doğrular.
 
-                //magic strings
-                return new ErrorResult(Messages.ProductNameInValid);
 
-            }
 
+            //if (product.UnitPrice <= 0)
+            //{
+            //    return new ErrorResult(Messages.UnitPriceInValid);
+            //}
+
+            //if (product.ProductName.Length<2)
+            //{
+
+            //    //magic strings
+            //    return new ErrorResult(Messages.ProductNameInValid);
+
+            //}  BU KODLAR Aspect-VALİDATİON KISMINDA YAZILDI BU İF YAPISINI YAAZMAYA GEREK KALMADI.
+
+            //
 
             //bussiness codes
+            IResult result = BusinessRules.Run(CheckIfProductCountOfCategoryCorrect(product.CategoryId)
+                , CheckIfProductNameExists(product.ProductName),CheckIfCategoryLimitExceded());
+
+            if (result != null)
+            {
+                return result;
+            }
             _productDal.Add(product);
-            
+
             return new SuccessResult(Messages.ProductAdded);
+
+            return new ErrorResult();
+
+
+            //Aşşağıdaki kodun DRY halini ve temiz halini yukarıda yazdık.
+
+            //if (CheckIfProductCountOfCategoryCorrect(product.CategoryId).Success)
+            //{
+            //    if (CheckIfProductNameExists(product.ProductName).Success)
+            //    {
+            //        _productDal.Add(product);
+
+            //        return new SuccessResult(Messages.ProductAdded);
+            //    }
+
+            //}
+
+
+
+
+
 
         }
 
@@ -70,5 +121,49 @@ namespace Business.Concrete
             return new SuccessDataResult<List<ProductDetailDto>>(_productDal.GetProductDetails());
 
         }
+
+        [ValidationAspect(typeof(ProductValidator))]
+        public IResult Update(Product product)
+        {
+
+            _productDal.Update(product);
+            return new SuccessResult();
+        }
+
+        private IResult CheckIfProductCountOfCategoryCorrect(int categoryId)
+        {
+            // Bu iş kodudur. Burada bir kategoride kaç ürün olacağını belirttik.
+
+            //Select count(*) from products where categoryId=1 -> Aşşağıdaki kod bu kodu çalıştırır SQL'de.
+            var result = _productDal.GetAll(p => p.CategoryId == categoryId).Count;
+            if (result >= 10)
+            {
+                return new ErrorResult(Messages.ProductCountOfCategoryError);
+
+            }
+            return new SuccessResult();
+        }
+
+        private IResult CheckIfProductNameExists(string productName)
+        {
+            var result = _productDal.GetAll(p => p.ProductName == productName).Any();
+            if (result == true)
+            {
+                return new ErrorResult(Messages.ProductNameAlreadyExists);
+            }
+            return new SuccessResult();
+        }
+
+        private IResult CheckIfCategoryLimitExceded()
+        {
+            var result = _categoryService.GetAll();
+            if (result.Data.Count>15)
+            {
+                return new ErrorResult(Messages.MaxCategoryError);
+            }
+            return new SuccessResult();
+        }
+
+        
     }
 }
